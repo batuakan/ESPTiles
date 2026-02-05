@@ -1,0 +1,150 @@
+
+host:
+
+external_components:
+- source:
+    type: local
+    path: ../components
+
+  components: [ esptiles ]
+
+logger:
+  level: DEBUG
+
+json:
+
+substitutions:
+  # Screen Size
+  screen_height_px: '720'
+  screen_width_px: '720'
+
+esphome:
+  name: sdl
+  friendly_name: SignalK SDL Display
+
+esptiles:
+  id: tiles
+  url_template: "http://localhost:5000/{z}/{x}/{y}"
+
+globals:
+  - id: zoom
+    type: int
+    restore_value: yes
+    initial_value: "15"
+
+display:
+  - platform: sdl
+    id: my_display
+    show_test_card: true
+    dimensions:
+      width: $screen_width_px
+      height: $screen_height_px
+
+touchscreen:
+  - platform: sdl
+    id: my_touchscreen
+    display: my_display
+
+
+
+interval:
+  - interval: 1sec
+    then:
+      - lambda: |-
+          
+          float latitude = 51.5009119888814;
+          float longitude = -0.12196072171167495;
+
+          id(tiles)->set_chart_image(id(chart_image));
+          id(tiles)->update_position(latitude, longitude, id(zoom));
+          id(tiles)->offset_object_to(id(position_marker), latitude, longitude);
+          
+          char buf[64];
+          snprintf(buf, sizeof(buf),
+                  "Lat: %.6f Lon: %.6f Zm: %d",
+                  latitude, longitude, id(zoom));
+          lv_label_set_text(id(chart_position), buf);
+
+image:
+  - file: p.png
+    id: map
+    type: rgb565
+    transparency: alpha_channel
+
+font:
+    # gfonts://family[@weight]
+  - file: "gfonts://Roboto"
+    id: roboto_36
+    size: 36
+
+  - file: "gfonts://Roboto"
+    id: roboto_24
+    size: 24
+
+lvgl:
+  pages:
+    - id: chart_page
+      widgets:
+        - container:
+            width: 720
+            height: 720
+            clip_corner: true
+            # scrollable: false
+            # clickable: false
+            widgets:
+              - image:
+                  id: chart_image
+                  src: map
+
+              - obj:
+                  id: position_marker 
+                  width: 40
+                  height: 40
+                  radius: 20 
+                  bg_color: red
+                  bg_opa: 80%
+                  border_width: 2
+                  
+        - button:
+            id: zoom_in_button
+            x: 620
+            y: 20
+            width: 80
+            height: 80
+            widgets:
+              - label:
+                  text: "+"
+                  align: CENTER
+                  text_font: roboto_36
+            on_press:
+              - lambda: |-
+                  id(zoom) = std::min(19, id(zoom) + 1);
+        - button:
+            id: zoom_out_button
+            x: 620
+            y: 120
+            width: 80
+            height: 80        
+            widgets:
+              - label:
+                  text: "-"
+                  align: CENTER
+                  text_font: roboto_36
+            on_press:
+              - lambda: |-
+                  id(zoom) = std::max(1, id(zoom) - 1);
+        - obj:
+            height: 10%
+            width: 70%
+            pad_left: 8
+            pad_right: 8
+            y: -10
+            bg_opa: 80%
+            align: BOTTOM_MID
+            radius: 20
+            widgets:
+              - label:
+                  id: chart_position
+                  text: "---, ---"
+                  text_font: roboto_24
+                  align: CENTER
