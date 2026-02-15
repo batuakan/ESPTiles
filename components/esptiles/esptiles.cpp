@@ -120,37 +120,51 @@ lv_img_dsc_t * EspTiles::get_region(float lat, float lon, int zoom) {
   // 1. MOVE EXISTING GRID IF CENTER MOVED
   // ------------------------------------
 
-  // if (delta.x != 0 || delta.y != 0) {
+  if (delta.x != 0 || delta.y != 0) {
 
-  //   int gx_start = delta.x > 0 ? GRID_SIZE - 1 : 0;
-  //   int gx_end   = delta.x > 0 ? -1 : GRID_SIZE;
-  //   int gx_step  = delta.x > 0 ? -1 : 1;
+    ESP_LOGI(TAG, "Center tile moved by %d,%d", delta.x, delta.y);
 
-  //   int gy_start = delta.y > 0 ? GRID_SIZE - 1 : 0;
-  //   int gy_end   = delta.y > 0 ? -1 : GRID_SIZE;
-  //   int gy_step  = delta.y > 0 ? -1 : 1;
+    std::pair<int,int> old_grid[GRID_SIZE][GRID_SIZE];
+    memcpy(old_grid, grid_tiles, sizeof(grid_tiles));
 
-  //   for (int gy = gy_start; gy != gy_end; gy += gy_step) {
-  //     for (int gx = gx_start; gx != gx_end; gx += gx_step) {
+    int gx_start = delta.x < 0 ? GRID_SIZE - 1 : 0;
+    int gx_end   = delta.x < 0 ? -1 : GRID_SIZE;
+    int gx_step  = delta.x < 0 ? -1 : 1;
 
-  //       int sx = gx + delta.x;
-  //       int sy = gy + delta.y;
+    int gy_start = delta.y < 0 ? GRID_SIZE - 1 : 0;
+    int gy_end   = delta.y < 0 ? -1 : GRID_SIZE;
+    int gy_step  = delta.y < 0 ? -1 : 1;
 
-  //       if (sx >= 0 && sx < GRID_SIZE &&
-  //           sy >= 0 && sy < GRID_SIZE) {
+    for (int gy = gy_start; gy != gy_end; gy += gy_step) {
+      for (int gx = gx_start; gx != gx_end; gx += gx_step) {
 
-  //         queue_.push({
-  //           JobType::MOVE,
-  //           0, 0,
-  //           gx, gy,
-  //           sx, sy
-  //         });
-  //       }
-  //     }
-  //   }
+        int sx = gx + delta.x;
+        int sy = gy + delta.y;
 
-  //   last_center_tile = center_tile;
-  // }
+        if (sx >= 0 && sx < GRID_SIZE &&
+            sy >= 0 && sy < GRID_SIZE) {
+
+          // logical move
+          grid_tiles[gx][gy] = old_grid[sx][sy];
+
+          // enqueue pixel move
+          queue_.push({
+            JobType::MOVE,
+            0,0,
+            gx, gy,
+            sx, sy
+          });
+
+        } else {
+
+          // this slot is genuinely new
+          grid_tiles[gx][gy] = {-1,-1};
+        }
+      }
+    }
+
+    last_center_tile = center_tile;
+  }
 
   // ------------------------------------
   // 2. FETCH ONLY MISSING TILES
@@ -168,8 +182,8 @@ lv_img_dsc_t * EspTiles::get_region(float lat, float lon, int zoom) {
           tile_x,
           tile_y,
           gx, gy,
-          gx,
-          gy
+          0,
+          0
         });
       }
     }
@@ -224,8 +238,8 @@ void EspTiles::stitch_tile(int gx, int gy, int tile_x, int tile_y, const std::ve
   lock_lvgl();
 
   uint8_t *dst = image_buffer_;
-
-  for (int y = 0; y < TILE_SIZE; y++) {
+  memset(dst, 0, TILE_SIZE * 2); // blank tile while moving
+  for (int y = 1; y < TILE_SIZE; y++) {
 
     int dst_y = gy * TILE_SIZE + y;
     int dst_x = gx * TILE_SIZE;
@@ -235,6 +249,7 @@ void EspTiles::stitch_tile(int gx, int gy, int tile_x, int tile_y, const std::ve
       &tile[y * TILE_SIZE * 2],
       TILE_SIZE * 2
     );
+    dst[(dst_y * IMG_SIZE + dst_x) * 2] = 0;
   }
 
   unlock_lvgl();
@@ -249,20 +264,35 @@ void EspTiles::stitch_tile(int gx, int gy, int tile_x, int tile_y, const std::ve
 
 void EspTiles::move_tile(int sx, int sy, int dx, int dy) {
   if (sx == dx && sy == dy) return;
+  ESP_LOGI("xyz", "Moving tile from %d,%d to %d,%d", sx, sy, dx, dy);
+  constexpr int BPP = 2;
+  int stride = GRID_SIZE * TILE_SIZE * BPP;
 
-  memcpy(
-    tile_ptr(dx,dy),
-    tile_ptr(sx,sy),
-    TILE_SIZE*TILE_SIZE*2
-  );
+  uint8_t* src = tile_ptr(sx, sy);
+  uint8_t* dst = tile_ptr(dx, dy);
 
-  grid_tiles[dx][dy] = grid_tiles[sx][sy];
+  memset(dst, 0, TILE_SIZE * BPP); // blank tile while moving
+  for (int y = 1; y < TILE_SIZE; y++) {
+    memcpy(
+      dst + y * stride,
+      src + y * stride,
+      TILE_SIZE * BPP
+    );
+  }
+
+  // grid_tiles[dx][dy] = grid_tiles[sx][sy];
 }
 
 uint8_t* EspTiles::tile_ptr(int gx, int gy) {
-  return image_buffer_ +
-         (gy * TILE_SIZE * GRID_SIZE + gx * TILE_SIZE) *
-         TILE_SIZE * 2;
+  constexpr int BYTES_PER_PIXEL = 2;
+
+  int full_width_pixels = GRID_SIZE * TILE_SIZE;
+
+  int pixel_offset =
+      gy * TILE_SIZE * full_width_pixels +
+      gx * TILE_SIZE;
+
+  return image_buffer_ + pixel_offset * BYTES_PER_PIXEL;
 }
 
 }  // namespace esptiles

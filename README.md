@@ -18,11 +18,9 @@ Setup the esptiles component
 
 ```yaml
 external_components:
-- source:
-    type: local
-    path: ../components
-
-  components: [ esptiles ]
+  # equivalent shorthand for GitHub
+  - source: github://batuakan/ESPTiles
+    components: [ esptiles ]
 
 esptiles:
   id: tiles
