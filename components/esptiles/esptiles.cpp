@@ -2,7 +2,6 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-#include "esphome/components/lvgl/lvgl_hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -17,10 +16,11 @@ void EspTiles::setup() {
   u_int32_t size = IMG_SIZE * IMG_SIZE * 2;
   allocate_buffer(&image_buffer_, size);
   memset(image_buffer_, 128, size);
-  img_.header.always_zero = 0;
-  img_.header.cf = LV_IMG_CF_TRUE_COLOR;
+  img_.header.magic = LV_IMAGE_HEADER_MAGIC;
+  img_.header.cf = LV_COLOR_FORMAT_RGB565;
   img_.header.w = IMG_SIZE;
   img_.header.h = IMG_SIZE;
+  img_.header.stride = IMG_SIZE * 2;
   img_.data = image_buffer_;
   img_.data_size = size;
 

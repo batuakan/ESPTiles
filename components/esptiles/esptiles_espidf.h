@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32_FRAMEWORK_ESP_IDF
 #pragma once
 
 #include "esptiles.h"

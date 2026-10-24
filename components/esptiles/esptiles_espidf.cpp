@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32_FRAMEWORK_ESP_IDF
 #include "esptiles_espidf.h"
 #include "esphome/core/log.h"
 #include "esp_heap_caps.h"

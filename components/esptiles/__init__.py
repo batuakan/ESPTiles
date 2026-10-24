@@ -4,12 +4,13 @@ import esphome.config_validation as cv
 from esphome.config_helpers import filter_source_files_from_platform
 from esphome.const import CONF_ID, PlatformFramework
 from esphome.core import CORE
+from esphome.components.esp32 import include_builtin_idf_component
 
 CONF_URL_TEMPLATE = "url_template"
 
 esptiles_ns = cg.esphome_ns.namespace("esptiles")
 
-if CORE.is_esp32 and CORE.using_esp_idf:
+if CORE.is_esp32 and not CORE.using_arduino:
     esptiles = esptiles_ns.class_("EspTiles_EspIdf", cg.Component)
     DEPENDENCIES = ["wifi"]
 elif CORE.is_esp32 and CORE.using_arduino:
@@ -30,14 +31,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_URL_TEMPLATE])
     await cg.register_component(var, config)
 
-    cg.add(var.set_setup_priority(100))
-    cg.add_library("bblanchon/ArduinoJson", "7.4.2")
-    if CORE.is_esp32 and CORE.using_esp_idf:
-        cg.add_library(
-            "esp_websocket_client",
-            None,
-            repository="https://components.espressif.com/api/downloads/?object_type=component&object_id=dbc87006-9a4b-45e6-a6ab-b286174cb413",
-        )
+    # cg.add(var.set_setup_priority(100))
+    if CORE.is_esp32 and not CORE.using_arduino:
+        include_builtin_idf_component("esp_http_client")
     if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("NetworkClientSecure", None)
         cg.add_library("HTTPClient", None)
